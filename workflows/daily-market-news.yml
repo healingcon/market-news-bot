@@ -1,1 +1,30 @@
+name: Daily Market News to Telegram
+
+on:
+  schedule:
+    # 매일 한국시간(KST) 오전 8시 = UTC 전날 23:00
+    - cron: "0 23 * * *"
+  workflow_dispatch: {}   # 수동 실행 버튼 (테스트용)
+
+jobs:
+  send-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 뉴스 수집 및 전송 실행
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python fetch_and_send.py
 
