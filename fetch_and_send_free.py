@@ -25,10 +25,14 @@ from deep_translator import GoogleTranslator
 # ---------------------------------------------------------
 
 RSS_FEEDS = [
+    # 해외(미국) 증시
     "https://finance.yahoo.com/news/rssindex",
     "https://finance.yahoo.com/rss/topstories",
     "https://kr.investing.com/rss/news_25.rss",
     "https://kr.investing.com/rss/stock_Stock.rss",
+    # 국내 증시
+    "https://www.hankyung.com/feed/finance",       # 한국경제 증권
+    "http://news.mk.co.kr/rss/stock.xml",          # 매일경제 증권
 ]
 
 MAX_ITEMS_PER_FEED = 20
@@ -59,6 +63,10 @@ KEYWORDS = [
     # 크립토 (사용자 관심사 반영)
     "bitcoin", "crypto", "btc",
     "비트코인", "암호화폐",
+    # 국내 증시 특화
+    "삼성전자", "SK하이닉스", "코스피200", "외국인 순매수", "외국인 순매도",
+    "기관 매수", "공매도", "상한가", "하한가", "신저가", "신고가",
+    "금융위", "금감원", "배당", "자사주",
 ]
 
 ANTHROPIC_UNUSED = None  # AI 미사용 버전 표시용
