@@ -20,7 +20,7 @@ import requests
 from bs4 import BeautifulSoup
 
 NAVER_MARKET_CAP_URL = "https://finance.naver.com/sise/sise_market_sum.naver?sosok=0"
-TOP_N = 10
+TOP_N = 20
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
