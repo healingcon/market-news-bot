@@ -2,8 +2,10 @@ name: Daily Market News to Telegram (Free)
 
 on:
   schedule:
-    # 매일 한국시간(KST) 오전 8시 = UTC 전날 23:00
-    - cron: "0 23 * * *"
+    - cron: "30 23 * * *"   # 08:30 KST - 장 시작 전 (미국 마감/공시/예상 테마)
+    - cron: "30 0 * * *"    # 09:30 KST - 장 초반 특징주
+    - cron: "0 4 * * *"     # 13:00 KST - 오전장 요약/오후장 전망
+    - cron: "40 6 * * *"    # 15:40 KST - 장 마감 시황
   workflow_dispatch: {}
 
 jobs:
@@ -26,4 +28,3 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python fetch_and_send_free.py
-
