@@ -1,0 +1,25 @@
+name: After Hours Price Test
+
+on:
+  workflow_dispatch: {}   # 구조 검증 전이라 수동 실행만 (자동 스케줄 없음)
+
+jobs:
+  test-after-hours:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 시간외 거래 데이터 테스트
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python after_hours_price.py
