@@ -2,7 +2,11 @@ name: Top10 Stock Price to Telegram
 
 on:
   schedule:
-    - cron: "0 */2 * * *"   # 매 2시간마다 (UTC 기준, 0시/2시/4시.../22시)
+    - cron: "0 0 * * 1-5"    # 09:00 KST - 개장 직후
+    - cron: "0 2 * * 1-5"    # 11:00 KST - 오전 중반
+    - cron: "0 4 * * 1-5"    # 13:00 KST - 오후 개장
+    - cron: "0 6 * * 1-5"    # 15:00 KST - 마감 전
+    - cron: "30 6 * * 1-5"   # 15:30 KST - 장 마감
   workflow_dispatch: {}
 
 jobs:
@@ -20,7 +24,7 @@ jobs:
       - name: 패키지 설치
         run: pip install -r requirements.txt
 
-      - name: TOP10 가격 수집 및 전송
+      - name: TOP20 가격 수집 및 전송
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
