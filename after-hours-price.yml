@@ -1,0 +1,27 @@
+name: After Hours Price
+
+on:
+  schedule:
+    - cron: "0 9 * * 1-5"   # 18:00 KST (시간외 단일가 마감 직후), 월~금
+  workflow_dispatch: {}
+
+jobs:
+  send-after-hours:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 시간외 거래 데이터 전송
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python after_hours_price.py
