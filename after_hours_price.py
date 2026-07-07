@@ -1,84 +1,149 @@
-#!/usr/bin/env python3
-"""
-국내 증시 시간외 거래(시간외 단일가) 상위 종목 -> 텔레그램 전송
-
-다음(Daum) 금융의 시간외 거래 페이지를 스크래핑합니다.
-주의: 이 페이지는 구조가 자주 안 바뀌지만, 100% 검증된 상태는 아니라서
-첫 실행 시 로그를 보고 파싱 로직을 조정해야 할 수 있습니다.
-
-필요한 환경변수 (GitHub Actions Secrets):
-- TELEGRAM_BOT_TOKEN
-- TELEGRAM_CHAT_ID
-"""
-
 import os
 import sys
-from datetime import datetime, timezone
-
+import json
 import requests
-from bs4 import BeautifulSoup
-
-DAUM_AFTER_HOURS_URL = "https://finance.daum.net/domestic/after_hours"
-TOP_N = 15
+from datetime import datetime, timezone, timedelta
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
+TOP_N = 20  # 시장별로 몇 종목씩 보여줄지
+
+API_URL = "https://finance.daum.net/api/trend/after_hours_spac"
+
 HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
+    "accept": "application/json, text/javascript, */*; q=0.01",
+    "accept-language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    "referer": "https://finance.daum.net/domestic/after_hours?market=KOSPI",
+    "user-agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
     ),
-    "Referer": "https://finance.daum.net/",
+    "x-requested-with": "XMLHttpRequest",
 }
 
-
-def fetch_after_hours():
-    resp = requests.get(DAUM_AFTER_HOURS_URL, headers=HEADERS, timeout=20)
-    resp.raise_for_status()
-
-    soup = BeautifulSoup(resp.text, "html.parser")
-
-    # 디버깅용: 페이지에 테이블이 있는지, 몇 개 있는지 로그로 남김
-    tables = soup.select("table")
-    print(f"[DEBUG] 페이지 내 테이블 개수: {len(tables)}", file=sys.stderr)
-
-    rows_data = []
-    for table in tables:
-        trs = table.select("tr")
-        for tr in trs:
-            tds = tr.select("td")
-            if len(tds) < 4:
-                continue
-            text_cells = [td.get_text(strip=True) for td in tds]
-            # 종목명이 있을 법한 셀(문자 포함, 숫자만은 아닌 셀)을 찾음
-            name_candidates = [c for c in text_cells if c and not c.replace(",", "").replace(".", "").replace("%", "").replace("+", "").replace("-", "").isdigit()]
-            if name_candidates:
-                rows_data.append(text_cells)
-
-    print(f"[DEBUG] 후보 행 개수: {len(rows_data)}", file=sys.stderr)
-    if rows_data:
-        print(f"[DEBUG] 첫 번째 후보 행 예시: {rows_data[0]}", file=sys.stderr)
-
-    return rows_data[:TOP_N]
+KST = timezone(timedelta(hours=9))
 
 
-def build_message(rows_data):
-    now_str = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M")
-    header = f"🌙 {now_str} 시간외 거래 현황 (테스트)\n\n"
+# ---------------------------------------------------------
+# 1. 다음 금융 API 호출
+# ---------------------------------------------------------
 
-    if not rows_data:
-        return header + "데이터를 가져오지 못했습니다. (페이지 구조 확인 필요)"
+def fetch_after_hours(market: str, change_type: str, per_page: int = TOP_N):
+    """
+    market: 'KOSPI' or 'KOSDAQ'
+    change_type: 'CHANGE_RISE' (상승) or 'CHANGE_FALL' (하락)
+    """
+    params = {
+        "page": 1,
+        "perPage": per_page,
+        "fieldName": "changeRate",
+        "order": "desc" if change_type == "CHANGE_RISE" else "asc",
+        "market": market,
+        "type": change_type,
+        "pagination": "true",
+    }
 
-    lines = []
-    for i, row in enumerate(rows_data, 1):
-        lines.append(f"{i}. {' | '.join(row[:5])}")
+    r = requests.get(API_URL, headers=HEADERS, params=params, timeout=15)
 
-    return header + "\n".join(lines)
+    print(f"[DEBUG] {market} {change_type} status={r.status_code}")
+
+    if r.status_code != 200:
+        print(f"[DEBUG] 응답 본문 일부: {r.text[:300]}")
+        return []
+
+    try:
+        data = r.json()
+    except json.JSONDecodeError:
+        print(f"[DEBUG] JSON 파싱 실패. 응답 본문 일부: {r.text[:300]}")
+        return []
+
+    # 실제 리스트가 들어있는 키를 유연하게 탐색
+    items = None
+    if isinstance(data, dict):
+        for key in ("data", "list", "items", "rows"):
+            if key in data and isinstance(data[key], list):
+                items = data[key]
+                break
+    elif isinstance(data, list):
+        items = data
+
+    if items is None:
+        print(f"[DEBUG] 알 수 없는 응답 구조. 최상위 키: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+        return []
+
+    if items:
+        print(f"[DEBUG] 첫 번째 항목 예시: {items[0]}")
+
+    return items
 
 
-def send_to_telegram(text):
+# ---------------------------------------------------------
+# 2. 항목 -> 보기 좋은 텍스트로 변환
+# ---------------------------------------------------------
+
+def format_item(item: dict) -> str:
+    name = item.get("name") or item.get("symbolName") or "종목명 미상"
+
+    price = (
+        item.get("tradePrice")
+        or item.get("price")
+        or item.get("afterMarketPrice")
+        or "-"
+    )
+
+    change_rate = item.get("changeRate")
+    if change_rate is not None:
+        change_rate_str = f"{change_rate:+.2f}%" if isinstance(change_rate, (int, float)) else str(change_rate)
+    else:
+        change_rate_str = "-"
+
+    change = item.get("change")
+    change_symbol = item.get("changeSymbol") or item.get("change_price_type") or ""
+
+    direction = "🔺" if "RISE" in str(change_symbol).upper() or (isinstance(change, (int, float)) and change > 0) else \
+                "🔻" if "FALL" in str(change_symbol).upper() or (isinstance(change, (int, float)) and change < 0) else "➖"
+
+    price_str = f"{price:,}" if isinstance(price, (int, float)) else str(price)
+    change_str = f"{change:+,}" if isinstance(change, (int, float)) else str(change) if change is not None else ""
+
+    return f"{name}\n   {price_str}원 {direction} {change_str} ({change_rate_str})"
+
+
+def build_message():
+    now_str = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+    header = f"🌙 {now_str} 국내 시간외 단일가 TOP{TOP_N}\n\n"
+
+    sections = []
+    for market in ("KOSPI", "KOSDAQ"):
+        rise_items = fetch_after_hours(market, "CHANGE_RISE")
+        fall_items = fetch_after_hours(market, "CHANGE_FALL")
+
+        lines = [f"[{market} 상승 TOP{min(TOP_N, len(rise_items))}]"]
+        if rise_items:
+            for i, item in enumerate(rise_items, 1):
+                lines.append(f"{i}. {format_item(item)}")
+        else:
+            lines.append("데이터를 가져오지 못했습니다. (페이지 구조 확인 필요)")
+
+        lines.append("")
+        lines.append(f"[{market} 하락 TOP{min(TOP_N, len(fall_items))}]")
+        if fall_items:
+            for i, item in enumerate(fall_items, 1):
+                lines.append(f"{i}. {format_item(item)}")
+        else:
+            lines.append("데이터를 가져오지 못했습니다. (페이지 구조 확인 필요)")
+
+        sections.append("\n".join(lines))
+
+    return header + "\n\n".join(sections)
+
+
+# ---------------------------------------------------------
+# 3. 텔레그램 전송
+# ---------------------------------------------------------
+
+def send_to_telegram(text: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         raise RuntimeError("TELEGRAM_BOT_TOKEN 또는 TELEGRAM_CHAT_ID가 설정되지 않았습니다.")
 
@@ -97,8 +162,7 @@ def send_to_telegram(text):
 
 
 def main():
-    rows_data = fetch_after_hours()
-    message = build_message(rows_data)
+    message = build_message()
 
     print("----- 전송할 메시지 -----")
     print(message)
