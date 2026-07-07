@@ -82,32 +82,31 @@ def fetch_after_hours(market: str, change_type: str, per_page: int = TOP_N):
 # 2. 항목 -> 보기 좋은 텍스트로 변환
 # ---------------------------------------------------------
 
+DIRECTION_MAP = {
+    "RISE": "🔺",
+    "UPPER_LIMIT": "🔺",
+    "FALL": "🔻",
+    "LOWER_LIMIT": "🔻",
+    "EVEN": "➖",
+}
+
+
 def format_item(item: dict) -> str:
-    name = item.get("name") or item.get("symbolName") or "종목명 미상"
+    name = item.get("name") or "종목명 미상"
 
-    price = (
-        item.get("tradePrice")
-        or item.get("price")
-        or item.get("afterMarketPrice")
-        or "-"
-    )
+    price = item.get("tradePrice")
+    price_str = f"{price:,.0f}" if isinstance(price, (int, float)) else str(price)
 
-    change_rate = item.get("changeRate")
-    if change_rate is not None:
-        change_rate_str = f"{change_rate:+.2f}%" if isinstance(change_rate, (int, float)) else str(change_rate)
-    else:
-        change_rate_str = "-"
+    status = str(item.get("change") or "")  # RISE / FALL / UPPER_LIMIT / LOWER_LIMIT / EVEN
+    direction = DIRECTION_MAP.get(status, "➖")
 
-    change = item.get("change")
-    change_symbol = item.get("changeSymbol") or item.get("change_price_type") or ""
+    change_price = item.get("changePrice")
+    change_price_str = f"{change_price:+,.0f}" if isinstance(change_price, (int, float)) else "-"
 
-    direction = "🔺" if "RISE" in str(change_symbol).upper() or (isinstance(change, (int, float)) and change > 0) else \
-                "🔻" if "FALL" in str(change_symbol).upper() or (isinstance(change, (int, float)) and change < 0) else "➖"
+    change_rate = item.get("changeRate")  # 0.0994... 같은 소수 형태 (실제 비율)
+    change_rate_str = f"{change_rate * 100:+.2f}%" if isinstance(change_rate, (int, float)) else "-"
 
-    price_str = f"{price:,}" if isinstance(price, (int, float)) else str(price)
-    change_str = f"{change:+,}" if isinstance(change, (int, float)) else str(change) if change is not None else ""
-
-    return f"{name}\n   {price_str}원 {direction} {change_str} ({change_rate_str})"
+    return f"{name}\n   {price_str}원 {direction} {change_price_str} ({change_rate_str})"
 
 
 def build_message():
