@@ -1,1 +1,25 @@
+name: Market Daily Summary Test
 
+on:
+  workflow_dispatch: {}   # 구조 검증 전이라 수동 실행만
+
+jobs:
+  test-daily-summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 종합 시황 리포트 테스트
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python market_daily_summary.py
