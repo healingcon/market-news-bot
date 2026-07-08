@@ -1,0 +1,38 @@
+name: Breaking News Alert
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # 10분마다 (24시간)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write   # seen_breaking_ids.json 커밋을 위해 필요
+
+jobs:
+  breaking-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 속보 체크 및 전송
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python breaking_news_alert.py
+
+      - name: 중복 방지 기록 커밋
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add seen_breaking_ids.json
+          git diff --staged --quiet || git commit -m "chore: update seen breaking news ids [skip ci]"
+          git push
