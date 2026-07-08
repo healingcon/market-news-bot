@@ -141,9 +141,13 @@ def fetch_news_section():
 
     url = "https://www.hankyung.com/feed/finance"  # 한국경제 증권(국내 증시) RSS
     try:
-        feed = feedparser.parse(url)
+        # feedparser가 직접 요청하면 User-Agent 문제로 차단될 수 있어 requests로 먼저 가져옴
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        print(f"[DEBUG] 뉴스 RSS status={resp.status_code}")
+        feed = feedparser.parse(resp.content)
         entries = feed.entries[:5]
         if not entries:
+            print(f"[DEBUG] 뉴스 RSS 응답 일부: {resp.text[:300]}")
             return "뉴스를 가져오지 못했습니다. (RSS 확인 필요)"
         lines = [f"{i}. {e.title}" for i, e in enumerate(entries, 1)]
         return "\n".join(lines)
