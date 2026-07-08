@@ -2,7 +2,7 @@ name: Breaking News Alert
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # 10분마다 (24시간)
+    - cron: "*/3 * * * *"   # 3분마다 (24시간)
   workflow_dispatch: {}
 
 permissions:
