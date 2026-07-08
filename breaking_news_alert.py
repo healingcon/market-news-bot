@@ -29,17 +29,23 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 SEEN_FILE = Path(__file__).parent / "seen_breaking_ids.json"
 MAX_SEEN_KEEP = 500  # 파일이 무한정 커지지 않도록 최근 N개만 유지
 
-# 기존 fetch_and_send_free.py의 피드 목록 재사용
+# 기존 fetch_and_send_free.py의 피드 목록 재사용 + 국내 증시 속보용 피드 추가
 try:
-    from fetch_and_send_free import RSS_FEEDS
+    from fetch_and_send_free import RSS_FEEDS as _BASE_FEEDS
 except ImportError:
-    print("[WARN] fetch_and_send_free.py를 찾지 못해 RSS_FEEDS를 자체 정의합니다.", file=sys.stderr)
-    RSS_FEEDS = []
+    print("[WARN] fetch_and_send_free.py를 찾지 못해 기본 피드만 사용합니다.", file=sys.stderr)
+    _BASE_FEEDS = []
+
+# 한국경제 증권(국내 증시) RSS - 실시간성이 좋아 사이드카/서킷브레이커 등 국내 이벤트에 강함
+RSS_FEEDS = list(_BASE_FEEDS) + ["https://www.hankyung.com/feed/finance"]
 
 # 속보로 판단할 키워드 (제목에 하나라도 포함되면 속보로 간주)
 BREAKING_KEYWORDS = [
     "속보", "긴급", "단독",
     "breaking", "urgent", "just in", "alert",
+    # 국내 증시 급변동 이벤트 (기사 제목에 "속보" 없이도 나오는 경우가 많음)
+    "사이드카", "서킷브레이커", "매도 사이드카", "매수 사이드카",
+    "급락", "급등", "폭락", "폭등",
 ]
 
 MAX_ITEMS_PER_FEED = 15
@@ -76,9 +82,18 @@ def fetch_breaking_items():
     seen_ids = load_seen_ids()
     new_breaking = []
 
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
+
     for url in RSS_FEEDS:
         try:
-            feed = feedparser.parse(url)
+            resp = requests.get(url, headers=headers, timeout=15)
+            feed = feedparser.parse(resp.content)
         except Exception as e:
             print(f"[WARN] RSS 파싱 실패: {url} ({e})", file=sys.stderr)
             continue
