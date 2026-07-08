@@ -14,6 +14,7 @@
 """
 
 import os
+import re
 import sys
 import json
 from datetime import datetime, timezone, timedelta
@@ -119,9 +120,15 @@ def format_sise_rows(rows_out):
     lines = []
     for i, row in enumerate(rows_out, 1):
         tds = row["raw_tds"]
-        # 일반적인 열 순서: [종목명, 현재가, 전일비, 등락률, 거래량, ...]
-        extra = " | ".join(tds[:4]) if tds else ""
-        lines.append(f"{i}. {row['name']} - {extra}")
+        # tds 구조: [순위, 종목명(중복), 현재가, 전일비(상태+금액 붙어있음), 등락률, 거래량, ...]
+        price = tds[2] if len(tds) > 2 else "-"
+        change_raw = tds[3] if len(tds) > 3 else ""
+        rate = tds[4] if len(tds) > 4 else ""
+
+        # "상한가2,080" -> "상한가 2,080" 처럼 상태문구와 숫자 사이 공백 추가
+        change = re.sub(r"(상한가|하한가|상승|하락|보합)", r"\1 ", change_raw).strip()
+
+        lines.append(f"{i}. {row['name']} - {price}원 {change} ({rate})")
     return "\n".join(lines)
 
 
@@ -130,16 +137,19 @@ def format_sise_rows(rows_out):
 # ---------------------------------------------------------
 
 def fetch_news_section():
+    import feedparser
+
+    url = "https://www.hankyung.com/feed/finance"  # 한국경제 증권(국내 증시) RSS
     try:
-        from fetch_and_send_free import fetch_headlines, filter_market_moving
-        items = filter_market_moving(fetch_headlines())
-        if not items:
-            return "오늘은 조건에 맞는 뉴스가 없습니다."
-        lines = [f"{i}. {it['title']}" for i, it in enumerate(items[:5], 1)]
+        feed = feedparser.parse(url)
+        entries = feed.entries[:5]
+        if not entries:
+            return "뉴스를 가져오지 못했습니다. (RSS 확인 필요)"
+        lines = [f"{i}. {e.title}" for i, e in enumerate(entries, 1)]
         return "\n".join(lines)
     except Exception as e:
         print(f"[WARN] 뉴스 섹션 가져오기 실패: {e}", file=sys.stderr)
-        return "뉴스 데이터를 가져오지 못했습니다. (fetch_and_send_free.py 확인 필요)"
+        return "뉴스 데이터를 가져오지 못했습니다. (RSS 확인 필요)"
 
 
 # ---------------------------------------------------------
